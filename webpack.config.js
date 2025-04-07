@@ -1,6 +1,4 @@
 // webpack.config.js
-const webpack = require('webpack');
-const path = require('path');
 const nodeExternals = require('webpack-node-externals');
 const TerserPlugin = require('terser-webpack-plugin');
 
