@@ -1,0 +1,63 @@
+edition: 3.0.0
+access: default
+
+vars:
+  region: cn-hangzhou
+
+resources:
+  server:
+    component: fc3
+    actions:
+      pre-deploy:
+        - run: make build
+          path: ./
+    props:
+      functionName: mcp-server-fc
+      description: MCP server @OhYee
+      region: ${vars.region}
+      role: acs:ram::${config("AccountID")}:role/aliyunfcdefaultrole
+
+      code: ./dist
+      customRuntimeConfig:
+        command:
+          - node
+          - index.js
+          - --mode
+          - sse
+        port: 9000
+
+      timeout: 600
+      diskSize: 512
+      instanceConcurrency: 100
+      runtime: custom.debian10
+
+      cpu: 2
+      memorySize: 2048
+
+      logConfig: auto
+
+      layers:
+        - acs:fc:cn-hangzhou:official:layers/Nodejs20/versions/2
+        - acs:fc:cn-hangzhou:official:layers/Python310/versions/2
+        - acs:fc:cn-hangzhou:official:layers/ServerlessDevs/versions/4
+        - acs:fc:cn-hangzhou:official:layers/Python3-Flask3x/versions/2
+        - acs:fc:cn-hangzhou:official:layers/Python310-Package-Collection/versions/4
+      environmentVariables:
+        PATH: /opt/nodejs20/bin:/opt/python3.10/bin:/var/fc/lang/python3.10/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/bin:DE_PATH:/opt/nodejs/node_modules
+        PYTHONPATH: /opt/python
+
+      triggers:
+        - triggerName: defaultTrigger
+          description: ''
+          qualifier: LATEST
+          triggerType: http
+          triggerConfig:
+            authType: anonymous
+            disableURLInternet: false
+            methods:
+              - GET
+              - POST
+              - DELETE
+              - PUT
+              - PATCH
+              - HEAD

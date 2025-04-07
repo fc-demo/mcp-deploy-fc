@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "moduleResolution": "NodeNext",
+    "module": "NodeNext",
+
+    "declaration": true,
+    "declarationMap": true,
+    "composite": true,
+    "removeComments": true,
+    "sourceMap": false,
+    "typeRoots": ["node_modues/@types", "types"]
+  },
+  "include": ["**/*.ts", "package.json", "**/*.yaml", "**/*.yml"],
+  "exclude": ["node_modules"]
+}
