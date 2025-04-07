@@ -11,6 +11,7 @@
     "dist"
   ],
   "scripts": {
+    "test": "echo ok",
     "watch": "tsc --watch",
     "build": "webpack --config webpack.config.js"
   },
