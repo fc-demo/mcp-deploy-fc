@@ -1,23 +1,19 @@
 edition: 3.0.0
-access: default
-
+access: {{access}}
+name: mcp-deploy-fc
 vars:
   region: cn-hangzhou
 
 resources:
   server:
     component: fc3
-    actions:
-      pre-deploy:
-        - run: make build
-          path: ./
     props:
-      functionName: mcp-server-fc
-      description: MCP server @OhYee
-      region: ${vars.region}
-      role: acs:ram::${config("AccountID")}:role/aliyunfcdefaultrole
+      functionName: {{name}}
+      description: MCP server for deploing code to function compute
+      region: {{region}}
+      role: {{functionRoleArn}} 
 
-      code: ./dist
+      code: ./code
       customRuntimeConfig:
         command:
           - node

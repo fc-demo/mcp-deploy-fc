@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",
+    "@serverless-devs/load-component": "^0.0.9",
     "@types/yargs": "^17.0.33",
     "express": "^4.21.2",
     "uuid": "^11.1.0",

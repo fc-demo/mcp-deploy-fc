@@ -23,3 +23,10 @@ clean:
 .PHONY: deploy
 deploy:
 	set -a; eval $$(grep -v '^#' .env); set +a; s deploy -y -a ${ACCESS}
+
+serverlessdevs/src/code/index.js: dist/index.js
+	cp -r dist/ ./serverlessdevs/src/code/
+
+.PHONY: template
+template: serverlessdevs/src/code/index.js
+	cd serverlessdevs && s registry publish

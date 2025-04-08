@@ -44,7 +44,7 @@ module.exports = {
         extensions: ['.ts', '.js', '.json', '.yaml', '.yml'],
     },
     optimization: {
-        minimize: false,
+        minimize: true,
         minimizer: [new TerserPlugin()],
         // splitChunks: true,
         // runtimeChunk: true,

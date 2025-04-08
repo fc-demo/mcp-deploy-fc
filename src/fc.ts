@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import yaml from 'yaml';
-import s from './s.yaml';
+import sTemplate from './template.yaml';
 
 async function runCommand(shell: string[], options?: SpawnOptionsWithoutStdio) {
   return await new Promise<{ stdout: string; stderr: string }>(
@@ -134,9 +134,9 @@ export async function deployCodeToFc(params: {
       });
     }
 
-    const syaml = JSON.parse(JSON.stringify(s));
+    const syaml = JSON.parse(JSON.stringify(sTemplate));
 
-    const functionName = `mcp-server-fc-${uuidv4()}`;
+    const functionName = `mcp-deploy-fc-${uuidv4()}`;
 
     syaml.vars.region = region || 'cn-hangzhou';
     syaml.resources.server.props.functionName = functionName;
@@ -205,7 +205,7 @@ export async function removeFc(params: {
     const tempDir = path.join('/tmp', uuidv4());
     fs.mkdirSync(tempDir, { recursive: true });
 
-    const syaml = JSON.parse(JSON.stringify(s));
+    const syaml = JSON.parse(JSON.stringify(sTemplate));
     syaml.vars.region = region || 'cn-hangzhou';
     syaml.resources.server.props.functionName = functionName;
 
