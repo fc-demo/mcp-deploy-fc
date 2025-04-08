@@ -1,6 +1,7 @@
 // webpack.config.js
 const nodeExternals = require('webpack-node-externals');
 const TerserPlugin = require('terser-webpack-plugin');
+const ShebangPlugin = require('webpack-shebang-plugin');
 
 module.exports = {
     target: 'node',
@@ -36,6 +37,9 @@ module.exports = {
             { test: /\.ya?ml$/, loader: 'yaml-loader' },
         ],
     },
+    plugins: [
+        new ShebangPlugin()
+    ],
     resolve: {
         extensions: ['.ts', '.js', '.json', '.yaml', '.yml'],
     },
