@@ -1,17 +1,13 @@
 edition: 3.0.0
 access: quanxi-fc
 
-vars:
-  region: cn-hangzhou
-
 resources:
   server:
     component: fc3
     props:
       functionName:
       description:
-      region: ${vars.region}
-      role: acs:ram::${config("AccountID")}:role/aliyunfcdefaultrole
+      region: 
 
       code: ./code
       customRuntimeConfig:
@@ -41,11 +37,11 @@ resources:
     component: fc3-domain
     props:
       domainName: auto
-      region: ${vars.region}
+      region: 
       protocol: HTTP
       routeConfig:
         routes:
-          - functionName: ${resources.server.props.functionName}
+          - functionName: 
             methods:
               - GET
               - POST

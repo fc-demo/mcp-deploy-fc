@@ -1,10 +1,12 @@
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import loadComponent from '@serverless-devs/load-component';
 import { spawn, SpawnOptionsWithoutStdio } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import yaml from 'yaml';
 import sTemplate from './template.yaml';
+import { Logger } from './logger';
 
 async function runCommand(shell: string[], options?: SpawnOptionsWithoutStdio) {
   return await new Promise<{ stdout: string; stderr: string }>(
@@ -48,15 +50,24 @@ async function sConfig() {
     ALIBABA_CLOUD_ACCESS_KEY_SECRET,
     ALIBABA_CLOUD_SECURITY_TOKEN,
     FC_ACCOUNT_ID,
+
+    ALIYUN_ACCESS_KEY_ID,
+    ALIYUN_ACCESS_KEY_SECRET,
+    ALIYUN_ACCOUNT_ID,
   } = process.env;
 
-  if (
-    !ALIBABA_CLOUD_ACCESS_KEY_ID ||
-    !ALIBABA_CLOUD_ACCESS_KEY_SECRET ||
-    !FC_ACCOUNT_ID
-  ) {
+  const accountID = ALIYUN_ACCOUNT_ID || FC_ACCOUNT_ID;
+  const accessKeyID = ALIYUN_ACCESS_KEY_ID || ALIBABA_CLOUD_ACCESS_KEY_ID;
+  const accessKeySecret = ALIYUN_ACCESS_KEY_ID
+    ? ALIYUN_ACCESS_KEY_SECRET
+    : ALIBABA_CLOUD_ACCESS_KEY_SECRET;
+  const securityToken = ALIYUN_ACCESS_KEY_ID
+    ? undefined
+    : ALIBABA_CLOUD_SECURITY_TOKEN;
+
+  if (!accessKeyID || !accessKeySecret || !accountID) {
     throw new Error(
-      'ALIBABA_CLOUD_ACCESS_KEY_ID, ALIBABA_CLOUD_ACCESS_KEY_SECRET or FC_ACCOUNT_ID is not set'
+      'ALIYUN_ACCOUNT_ID, ALIYUN_ACCESS_KEY_ID, ALIYUN_ACCESS_KEY_SECRET or function role is not set'
     );
   }
 
@@ -64,25 +75,80 @@ async function sConfig() {
     's',
     'config',
     'add',
-
     '-a',
     'default',
 
     '--AccessKeyID',
-    ALIBABA_CLOUD_ACCESS_KEY_ID,
+    accessKeyID,
 
     '--AccessKeySecret',
-    ALIBABA_CLOUD_ACCESS_KEY_SECRET,
+    accessKeySecret,
 
-    ...(ALIBABA_CLOUD_SECURITY_TOKEN
-      ? ['--SecurityToken', ALIBABA_CLOUD_SECURITY_TOKEN]
-      : []),
+    ...(securityToken ? ['--SecurityToken', securityToken] : []),
 
     '--AccountID',
-    FC_ACCOUNT_ID,
+    accountID,
 
     '-f',
   ]);
+
+  return {
+    accountID,
+    accessKeyID,
+    accessKeySecret,
+    securityToken,
+  };
+}
+
+async function runS(command: string, yamlPath: string) {
+  const config = await sConfig();
+  const logger = new Logger();
+
+  const content = fs.readFileSync(yamlPath, 'utf8');
+  const yamlObject = yaml.parse(content);
+
+  const results: Record<string, any> = {};
+
+  for (const [resourceKey, resource] of Object.entries<any>(
+    yamlObject.resources
+  )) {
+    console.log('s', command, resource?.component);
+
+    const component = await loadComponent(resource?.component, {
+      logger,
+    });
+
+    const result = await component[command]({
+      props: resource?.props,
+      name: yamlObject.name,
+      args: ['-t', yamlPath, '-y', '--silent'],
+      yaml: { path: yamlPath },
+      cwd: path.dirname(yamlPath),
+      resource: {
+        name: resourceKey,
+        component: resource?.component,
+        access: 'default',
+      },
+      getCredential: async () => ({
+        AccountID: config.accountID,
+        AccessKeyID: config.accessKeyID,
+        AccessKeySecret: config.accessKeySecret,
+        SecurityToken: config.securityToken,
+      }),
+    });
+
+    results[resourceKey] = result;
+  }
+
+  return results;
+}
+
+async function sDeploy(yamlPath: string) {
+  return runS('deploy', yamlPath);
+}
+
+async function sRemove(yamlPath: string) {
+  return runS('remove', yamlPath);
 }
 
 export async function deployCodeToFc(params: {
@@ -137,8 +203,10 @@ export async function deployCodeToFc(params: {
     const syaml = JSON.parse(JSON.stringify(sTemplate));
 
     const functionName = `mcp-deploy-fc-${uuidv4()}`;
+    // const functionName = `mcp-deploy-fc-abcd`;
 
-    syaml.vars.region = region || 'cn-hangzhou';
+    syaml.resources.server.props.region = region || 'cn-hangzhou';
+    syaml.resources.domain.props.region = region || 'cn-hangzhou';
     syaml.resources.server.props.functionName = functionName;
     syaml.resources.server.props.description =
       (!!description?.length && description?.length > 256
@@ -151,24 +219,14 @@ export async function deployCodeToFc(params: {
     syaml.resources.server.props.timeout = timeout;
     syaml.resources.server.props.customRuntimeConfig.command = startCommand;
     syaml.resources.server.props.customRuntimeConfig.port = port || 9000;
+    syaml.resources.domain.props.routeConfig.routes[0].functionName =
+      functionName;
 
-    fs.writeFileSync(
-      path.join(tempDir, 's.yaml'),
-      yaml.stringify(syaml, null, 2)
-    );
+    const yamlPath = path.join(tempDir, 's.yaml');
+    fs.writeFileSync(yamlPath, yaml.stringify(syaml, null, 2));
 
-    await sConfig();
-    const { stdout } = await runCommand(
-      parseCommand('s deploy -y -a default'),
-      {
-        cwd: tempDir,
-      }
-    );
-
-    const domainName =
-      /domainName:.*?([a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,}(:[0-9]{1,5})?(\/[\S]*)?)\n/.exec(
-        stdout
-      )?.[1];
+    const result = await sDeploy(yamlPath);
+    const domainName = result?.domain?.domainName;
 
     console.log({ tempDir });
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -206,16 +264,16 @@ export async function removeFc(params: {
     fs.mkdirSync(tempDir, { recursive: true });
 
     const syaml = JSON.parse(JSON.stringify(sTemplate));
-    syaml.vars.region = region || 'cn-hangzhou';
+    syaml.resources.server.props.region = region || 'cn-hangzhou';
+    syaml.resources.domain.props.region = region || 'cn-hangzhou';
     syaml.resources.server.props.functionName = functionName;
+    syaml.resources.domain.props.routeConfig.routes[0].functionName =
+      functionName;
 
-    fs.writeFileSync(
-      path.join(tempDir, 's.yaml'),
-      yaml.stringify(syaml, null, 2)
-    );
+    const yamlPath = path.join(tempDir, 's.yaml');
+    fs.writeFileSync(yamlPath, yaml.stringify(syaml, null, 2));
 
-    await sConfig();
-    await runCommand(parseCommand('s remove -y -a default'), { cwd: tempDir });
+    await sRemove(yamlPath);
 
     return {
       content: [

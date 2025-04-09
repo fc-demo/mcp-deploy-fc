@@ -46,12 +46,10 @@ module.exports = {
     optimization: {
         minimize: true,
         minimizer: [new TerserPlugin()],
-        // splitChunks: true,
-        // runtimeChunk: true,
     },
     devtool: 'source-map',
     externals: [
-        nodeExternals({ allowlist: [/.*/] }),
+        nodeExternals({ except: '@serverless-devs/load-component' })
     ],
     experiments: {
         topLevelAwait: true,
