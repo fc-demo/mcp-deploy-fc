@@ -1,40 +1,40 @@
 export class Logger {
-  instance: any;
-
   log(...args: unknown[]) {
-    console.log(...args);
+    console.error(...args);
   }
   info(...args: unknown[]) {
-    console.log(...args);
+    console.error(...args);
   }
   debug(...args: unknown[]) {
-    console.log(...args);
+    console.error(...args);
   }
   warn(...args: unknown[]) {
-    console.log(...args);
+    console.error(...args);
   }
   write(...args: unknown[]) {
-    console.log(...args);
+    console.error(...args);
   }
   error(...args: unknown[]) {
-    console.log(...args);
+    console.error(...args);
   }
   output(...args: unknown[]) {
-    console.log(...args);
+    console.error(...args);
   }
   spin(...args: unknown[]) {
-    console.log(...args);
+    console.error(...args);
   }
   tips(...args: unknown[]) {
-    console.log(...args);
+    console.error(...args);
   }
   append(...args: unknown[]) {
-    console.log(...args);
+    console.error(...args);
   }
   warnOnce(...args: unknown[]) {
-    console.log(...args);
+    console.error(...args);
   }
   writeOnce(...args: unknown[]) {
-    console.log(...args);
+    console.error(...args);
   }
 }
+
+export const logger = new Logger();

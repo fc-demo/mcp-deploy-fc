@@ -15,6 +15,12 @@ export function initServer() {
     'deployCodeToFunctionCompute',
     'deploy code to function compute, and returns a url to visit',
     {
+      functionName: z
+        .string()
+        .optional()
+        .describe(
+          'the name of the function. If the function name has exists, it will update the old one'
+        ),
       description: z
         .string()
         .optional()

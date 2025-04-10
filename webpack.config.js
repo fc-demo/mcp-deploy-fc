@@ -49,7 +49,14 @@ module.exports = {
     },
     devtool: 'source-map',
     externals: [
-        nodeExternals({ except: '@serverless-devs/load-component' })
+        ({ context, request }, callback) => {
+            // 对特定模块使用 require 方式
+            if (request.includes('@serverless-devs/load-component')) {
+                return callback(null, `commonjs ${request}`);
+            }
+            // 其他模块走 nodeExternals
+            nodeExternals({ allowlist: [/.*/] })(context, request, callback);
+        }
     ],
     experiments: {
         topLevelAwait: true,

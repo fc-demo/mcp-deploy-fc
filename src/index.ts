@@ -5,6 +5,7 @@ import express, { Request, Response } from 'express';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { initServer } from './mcp-server';
+import { logger } from './logger';
 
 async function main() {
   const argv = await yargs(hideBin(process.argv))
@@ -26,25 +27,25 @@ async function main() {
 
   switch (argv.mode.toLowerCase()) {
     case 'stdio':
-      console.log(`start sdtio mode`);
+      logger.log(`start sdtio mode`);
       const server = initServer();
       server.connect(new StdioServerTransport());
       break;
     case 'sse':
-      console.log(`start SSE mode on ${argv.host}:${argv.port}`);
+      logger.log(`start SSE mode on ${argv.host}:${argv.port}`);
       const app = express();
 
       const transports: { [sessionId: string]: SSEServerTransport } = {};
 
       app.get('/sse', async (req: Request, res: Response) => {
-        console.log('sse connected');
+        logger.log('sse connected');
 
         const transport = new SSEServerTransport('/messages', res);
         transports[transport.sessionId] = transport;
-        console.log('sse init session id', transport.sessionId);
+        logger.log('sse init session id', transport.sessionId);
 
         res.on('close', () => {
-          console.log('sse closed', transport.sessionId);
+          logger.log('sse closed', transport.sessionId);
           delete transports[transport.sessionId];
         });
 
@@ -55,15 +56,15 @@ async function main() {
       app.post('/messages', async (req: Request, res: Response) => {
         const sessionId = req.query.sessionId as string;
 
-        console.log('receive message, sessionId', sessionId);
-        console.log(req.body);
+        logger.log('receive message, sessionId', sessionId);
+        logger.log(req.body);
 
         const transport = transports[sessionId];
         if (transport) {
           await transport.handlePostMessage(req, res);
-          console.log('message finished, sessionId', sessionId);
+          logger.log('message finished, sessionId', sessionId);
         } else {
-          console.log('session id is missing', sessionId);
+          logger.log('session id is missing', sessionId);
           res.status(400).send('No transport found for sessionId');
         }
       });

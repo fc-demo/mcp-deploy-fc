@@ -5,13 +5,13 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import yaml from 'yaml';
+import { Logger, logger } from './logger';
 import sTemplate from './template.yaml';
-import { Logger } from './logger';
 
 async function runCommand(shell: string[], options?: SpawnOptionsWithoutStdio) {
   return await new Promise<{ stdout: string; stderr: string }>(
     (resolve, reject) => {
-      console.log(`run command: ${shell.join(' ')}`);
+      logger.log(`run command: ${shell.join(' ')}`);
 
       const process = spawn(shell[0], shell.slice(1), options);
       let stdout = '';
@@ -71,27 +71,6 @@ async function sConfig() {
     );
   }
 
-  await runCommand([
-    's',
-    'config',
-    'add',
-    '-a',
-    'default',
-
-    '--AccessKeyID',
-    accessKeyID,
-
-    '--AccessKeySecret',
-    accessKeySecret,
-
-    ...(securityToken ? ['--SecurityToken', securityToken] : []),
-
-    '--AccountID',
-    accountID,
-
-    '-f',
-  ]);
-
   return {
     accountID,
     accessKeyID,
@@ -112,7 +91,7 @@ async function runS(command: string, yamlPath: string) {
   for (const [resourceKey, resource] of Object.entries<any>(
     yamlObject.resources
   )) {
-    console.log('s', command, resource?.component);
+    logger.log('s', command, resource?.component);
 
     const component = await loadComponent(resource?.component, {
       logger,
@@ -152,6 +131,7 @@ async function sRemove(yamlPath: string) {
 }
 
 export async function deployCodeToFc(params: {
+  functionName?: string;
   region?: string;
   code: { filename: string; content: string }[];
   port?: number;
@@ -162,6 +142,7 @@ export async function deployCodeToFc(params: {
   startCommand: string[];
 }): Promise<CallToolResult> {
   const {
+    functionName = `mcp-deploy-fc-${uuidv4()}`,
     region,
     code,
     description,
@@ -171,7 +152,7 @@ export async function deployCodeToFc(params: {
     startCommand,
     port,
   } = params;
-  console.log(params);
+  logger.log(params);
 
   const tempDir = path.join('/tmp', uuidv4());
   const codeDir = path.join(tempDir, 'code');
@@ -202,9 +183,6 @@ export async function deployCodeToFc(params: {
 
     const syaml = JSON.parse(JSON.stringify(sTemplate));
 
-    const functionName = `mcp-deploy-fc-${uuidv4()}`;
-    // const functionName = `mcp-deploy-fc-abcd`;
-
     syaml.resources.server.props.region = region || 'cn-hangzhou';
     syaml.resources.domain.props.region = region || 'cn-hangzhou';
     syaml.resources.server.props.functionName = functionName;
@@ -228,7 +206,7 @@ export async function deployCodeToFc(params: {
     const result = await sDeploy(yamlPath);
     const domainName = result?.domain?.domainName;
 
-    console.log({ tempDir });
+    logger.log({ tempDir });
     fs.rmSync(tempDir, { recursive: true, force: true });
 
     return {
@@ -296,6 +274,7 @@ export async function removeFc(params: {
     };
   }
 }
+
 
 // deployCodeToFc({
 //   region: 'cn-hangzhou',

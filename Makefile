@@ -14,7 +14,7 @@ build: dist/index.js
 
 .PHONY: dev
 dev: build
-	node dist/index.js --mode sse
+	node dist/index.js
 
 .PHONY: clean
 clean:
@@ -23,6 +23,10 @@ clean:
 .PHONY: deploy
 deploy:
 	set -a; eval $$(grep -v '^#' .env); set +a; s deploy -y -a ${ACCESS}
+
+.PHONY: publish
+publish:
+	npm publish --registry https://registry.npmjs.org
 
 serverlessdevs/src/code/index.js: dist/index.js
 	cp -r dist/ ./serverlessdevs/src/code/
