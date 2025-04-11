@@ -21,7 +21,7 @@ resources:
       cpu: 2
       memorySize: 2048
 
-      logConfig: auto
+      # logConfig: auto
 
       layers:
         - acs:fc:cn-hangzhou:official:layers/Nodejs20/versions/2
