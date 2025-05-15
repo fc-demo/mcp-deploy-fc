@@ -2,6 +2,7 @@ import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import loadComponent from '@serverless-devs/load-component';
 import { spawn, SpawnOptionsWithoutStdio } from 'child_process';
 import fs from 'fs';
+import OpenAI from 'openai';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import yaml from 'yaml';
@@ -81,7 +82,7 @@ async function sConfig() {
 
 async function runS(command: string, yamlPath: string) {
   const config = await sConfig();
-  const logger = new Logger();
+  const logger = new Logger({ silent: true });
 
   const content = fs.readFileSync(yamlPath, 'utf8');
   const yamlObject = yaml.parse(content);
@@ -100,7 +101,7 @@ async function runS(command: string, yamlPath: string) {
     const result = await component[command]({
       props: resource?.props,
       name: yamlObject.name,
-      args: ['-t', yamlPath, '-y', '--silent'],
+      args: ['--silent', '-t', yamlPath, '-y'],
       yaml: { path: yamlPath },
       cwd: path.dirname(yamlPath),
       resource: {
@@ -142,8 +143,8 @@ export async function deployCodeToFc(params: {
   startCommand: string[];
 }): Promise<CallToolResult> {
   const {
-    functionName = `mcp-deploy-fc-${uuidv4()}`,
-    region,
+    functionName: _fname = `mcp-deploy-fc-${uuidv4()}`,
+    region = 'cn-hangzhou',
     code,
     description,
     environmentVariables,
@@ -153,6 +154,10 @@ export async function deployCodeToFc(params: {
     port,
   } = params;
   logger.log(params);
+
+  const functionName = _fname.startsWith('mcp-deploy-fc-')
+    ? _fname
+    : `mcp-deploy-fc-${_fname}`;
 
   const tempDir = path.join('/tmp', uuidv4());
   const codeDir = path.join(tempDir, 'code');
@@ -206,14 +211,24 @@ export async function deployCodeToFc(params: {
     const result = await sDeploy(yamlPath);
     const domainName = result?.domain?.domainName;
 
-    logger.log({ tempDir });
     fs.rmSync(tempDir, { recursive: true, force: true });
+
+    const resultText = `Function deployed successfully, functionName: ${functionName}, function detail page: https://fcnext.console.aliyun.com/${region}/functions/${functionName}. Visit URL: http://${domainName}`;
+    logger.log({ resultText });
+
+    // report status
+    const resp = await fetch(
+      `https://cap-mcp-metrics-pfoztnrgek.cn-hangzhou.fcapp.run?uid=${process.env['FC_ACCOUNT_ID']}`
+    );
+    if (resp.status !== 200) {
+      logger.error('report status failed', resp.status, await resp.text());
+    }
 
     return {
       content: [
         {
           type: 'text',
-          text: `Function deployed successfully, function: [${functionName}](https://fcnext.console.aliyun.com/${region}/functions/${functionName}). Visit URL: http://${domainName}`,
+          text: resultText,
         },
       ],
     };
@@ -275,6 +290,108 @@ export async function removeFc(params: {
   }
 }
 
+const systemPrompt = `
+你是一个代码撰写助手，请根据我的需要来撰写代码。项目将会通过 HTTP Web 使用
+
+请确保代码交互逻辑满足需要，不要有使用上的 bug。
+页面应该尽可能美观，符合大众审美。
+输出需要确保满足如下格式，并以 json 形式返回，**不要输出 json 之外的信息**，如果没有特殊需要，不要输出如 \`functionName\` 等可选字段
+\`\`\`typescript
+type Input = {
+  /** 部署地域，支持 cn-hangzhou, cn-beijing, cn-shanghai, cn-shenzhen，默认为 cn-hangzhou  */
+  region?: string;
+  /** 程序代码  */
+  code: {
+    /** 相对路径的文件名 */
+    filename: string;
+    /** 文件内容 */
+    content: string
+  }[];
+  /** 端口号，默认为 9000 */
+  port?: number;
+  /** 程序描述，不超过 256 字  */
+  description?: string;
+  /** 需要配置的环境变量  */
+  environmentVariables?: Record<string, string>;
+  /** 单个请求的超时时间，默认 5 秒  */
+  timeout: number;
+  /**
+   * 安装依赖需要执行的命令，所有依赖都需要被安装在代码同目录内
+   *
+   * 示例
+   * [ "npm", "install" ]
+   * [ "pip", "install", "-r", "requirements.txt", "-t", "." ]
+   */
+  installDependenciesCommand?: string[];
+  /**
+   * 启动命令，如果是纯 html，可以直接使用 python3 的 http.server 启动
+   *
+   * 示例
+   * [ "python3", "-m", "http.server", "9000" ]
+   * [ "npm", "run", "start" ]
+   * [ "python", "main.py" ]
+   */
+  startCommand: string[];
+}
+\`\`\`
+`.trim();
+
+export async function generateCodeAndDeployToFc(params: {
+  prompt: string;
+  functionName?: string;
+}): Promise<CallToolResult> {
+  const { prompt, functionName } = params;
+
+  const client = new OpenAI({
+    apiKey: process.env['LLM_API_KEY'],
+    baseURL:
+      process.env['LLM_API_BASE_URL'] ||
+      'https://dashscope.aliyuncs.com/compatible-mode/v1',
+  });
+
+  const stream = await client.chat.completions.create({
+    model: process.env['LLM_MODEL'] || 'deepseek-v3',
+    messages: [
+      {
+        role: 'system',
+        content: process.env['LLM_SYSTEM_PROMPT'] || systemPrompt,
+      },
+      { role: 'user', content: prompt },
+    ],
+    stream: true,
+  });
+
+  let content = '';
+  for await (const chunk of stream) {
+    // process.stderr.write(chunk.choices[0].delta.content || '');
+    content += chunk.choices[0].delta.content || '';
+  }
+
+  try {
+    const json = JSON.parse(
+      content.substring(content.indexOf('{'), content.lastIndexOf('}') + 1)
+    );
+    return await deployCodeToFc({
+      functionName,
+      code: json?.code || {},
+      port: json?.port || 9000,
+      description: json?.description || '',
+      environmentVariables: json?.environmentVariables || {},
+      timeout: json?.timeout || 5,
+      startCommand: json?.startCommand || [],
+      installDependenciesCommand: json?.installDependenciesCommand || [],
+    });
+  } catch (e) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Code generate failed\n\n${e}`,
+        },
+      ],
+    };
+  }
+}
 
 // deployCodeToFc({
 //   region: 'cn-hangzhou',
@@ -330,3 +447,13 @@ export async function removeFc(params: {
 //   region: 'cn-hangzhou',
 //   functionName: 'mcp-server-fc-ohyee-test',
 // }).then(console.log);
+
+// removeFc({
+//   region: 'cn-hangzhou',
+//   functionName: 'mcp-server-fc-ohyee-test',
+// }).finally(() =>
+//   generateCodeAndDeployToFc({
+//     prompt: '写一个 2048',
+//     functionName: 'mcp-server-fc-ohyee-test',
+//   }).then(console.log)
+// );

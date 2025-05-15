@@ -1,40 +1,49 @@
 export class Logger {
+  silent = false;
+
+  constructor({ silent = false }) {
+    this.silent = silent;
+  }
+
   log(...args: unknown[]) {
-    console.error(...args);
-  }
-  info(...args: unknown[]) {
-    console.error(...args);
-  }
-  debug(...args: unknown[]) {
-    console.error(...args);
-  }
-  warn(...args: unknown[]) {
-    console.error(...args);
-  }
-  write(...args: unknown[]) {
+    if (this.silent) return;
+
     console.error(...args);
   }
   error(...args: unknown[]) {
     console.error(...args);
   }
+  info(...args: unknown[]) {
+    this.log(...args);
+  }
+  debug(...args: unknown[]) {
+    this.log(...args);
+  }
+  warn(...args: unknown[]) {
+    this.log(...args);
+  }
+  write(...args: unknown[]) {
+    this.log(...args);
+  }
+
   output(...args: unknown[]) {
-    console.error(...args);
+    this.log(...args);
   }
   spin(...args: unknown[]) {
-    console.error(...args);
+    this.log(...args);
   }
   tips(...args: unknown[]) {
-    console.error(...args);
+    this.log(...args);
   }
   append(...args: unknown[]) {
-    console.error(...args);
+    this.log(...args);
   }
   warnOnce(...args: unknown[]) {
-    console.error(...args);
+    this.log(...args);
   }
   writeOnce(...args: unknown[]) {
-    console.error(...args);
+    this.log(...args);
   }
 }
 
-export const logger = new Logger();
+export const logger = new Logger({});
